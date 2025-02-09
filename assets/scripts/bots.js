@@ -9,34 +9,34 @@ class Bot {
 
     // Bot radius
     this.radius = 15 + Math.random() * 10;
-    this.targetRadius = this.radius; // for smooth growth/shrink
-    this.smoothing = 0.15; // how fast to interpolate radius
+    this.targetRadius = this.radius; // smooth changes
+    this.smoothing = 0.15;
 
-    // Bot velocity / direction
+    // Use HSL with random hue for bots
+    this.hue = Math.floor(Math.random() * 360);
+
+    // Movement
     this.angle = Math.random() * 2 * Math.PI;
-    this.speed = 2;
-    this.color = this.getRandomColor();
-  }
-
-  getRandomColor() {
-    const r = Math.floor(Math.random() * 255);
-    const g = Math.floor(Math.random() * 255);
-    const b = Math.floor(Math.random() * 255);
-    return `rgb(${r}, ${g}, ${b})`;
+    this.baseMaxSpeed = 2; // "base" top speed
+    this.speed = this.baseMaxSpeed;
   }
 
   update() {
-    // Smoothly interpolate radius to targetRadius
+    // Smoothly interpolate radius
     this.radius += this.smoothing * (this.targetRadius - this.radius);
 
-    // Small random-walk AI
+    // Speed limit depends on radius (bigger => slower)
+    // e.g. finalMaxSpeed = baseMax / (1 + radius * 0.01)
+    let finalMaxSpeed = this.baseMaxSpeed / (1 + this.radius * 0.01);
+
+    // Random-walk AI
     if (Math.random() < 0.01) {
       this.angle += (Math.random() - 0.5) * 1.0;
     }
 
-    // Move
-    this.x += Math.cos(this.angle) * this.speed;
-    this.y += Math.sin(this.angle) * this.speed;
+    // Move at final speed
+    this.x += Math.cos(this.angle) * finalMaxSpeed;
+    this.y += Math.sin(this.angle) * finalMaxSpeed;
 
     // Keep in bounds
     if (this.x < 0) this.x = 0;
@@ -50,18 +50,15 @@ class Bot {
     const screenX = (this.x - camera.x) * scale + camera.offsetX;
     const screenY = (this.y - camera.y) * scale + camera.offsetY;
     ctx.beginPath();
-    ctx.fillStyle = this.color;
+    const color = `hsl(${this.hue}, 100%, 50%)`;
+    ctx.fillStyle = color;
     ctx.arc(screenX, screenY, this.radius * scale, 0, 2 * Math.PI);
     ctx.fill();
     ctx.restore();
   }
 
-  // Called when we want the bot to grow or shrink
   setTargetRadius(newRadius) {
-    this.targetRadius = newRadius;
-    if (this.targetRadius < 0) {
-      this.targetRadius = 0;
-    }
+    this.targetRadius = Math.max(0, newRadius);
   }
 }
 

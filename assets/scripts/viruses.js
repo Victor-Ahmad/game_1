@@ -15,13 +15,14 @@ class Viruses {
         x: Math.random() * this.worldWidth,
         y: Math.random() * this.worldHeight,
         radius: 40 + Math.random() * 15,
-        color: "#39a85a",
+        // Let's make viruses always appear greenish hue ~120
+        hue: 120,
       });
     }
   }
 
   update() {
-    // Viruses are static
+    // Viruses do not move
   }
 
   render(ctx, camera, scale) {
@@ -31,7 +32,8 @@ class Viruses {
       const screenY = (virus.y - camera.y) * scale + camera.offsetY;
       ctx.beginPath();
       this.drawSpikyCircle(ctx, screenX, screenY, virus.radius * scale, 20);
-      ctx.fillStyle = virus.color;
+      const color = `hsl(${virus.hue}, 100%, 50%)`;
+      ctx.fillStyle = color;
       ctx.fill();
     });
     ctx.restore();

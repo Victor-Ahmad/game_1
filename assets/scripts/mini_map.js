@@ -11,32 +11,25 @@ class MiniMap {
   }
 
   resize() {
-    // Called on window resize
     this.x = window.innerWidth - this.width - 20;
     this.y = window.innerHeight - this.height - 20;
   }
 
-  render(ctx, player, bots, pellets, viruses) {
+  render(ctx, player) {
     ctx.save();
 
-    // 1) Minimap background
+    // Dark background for minimap
     ctx.globalAlpha = 0.6;
     ctx.fillStyle = "#000";
     ctx.fillRect(this.x, this.y, this.width, this.height);
     ctx.globalAlpha = 1.0;
 
-    // 2) Red boundary (world boundary representation)
-    ctx.strokeStyle = "red";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(this.x, this.y, this.width, this.height);
-
-    // 3) 6×6 grid
+    // 6×6 grid lines
     const rows = 6;
     const cols = 6;
     const cellWidth = this.width / cols;
     const cellHeight = this.height / rows;
 
-    // Grid lines
     ctx.strokeStyle = "#444";
     ctx.lineWidth = 1;
     // Horizontal lines
@@ -56,7 +49,7 @@ class MiniMap {
       ctx.stroke();
     }
 
-    // Labels (A1..A6, B1..B6, ... F6)
+    // Cell names (A1..F6)
     ctx.fillStyle = "#ffffff";
     ctx.font = "12px sans-serif";
     ctx.textAlign = "center";
@@ -71,38 +64,11 @@ class MiniMap {
       }
     }
 
-    // 4) Pellets
-    ctx.fillStyle = "#ccc";
-    pellets.list.forEach((p) => {
-      const px = this.x + (p.x / this.worldWidth) * this.width;
-      const py = this.y + (p.y / this.worldHeight) * this.height;
-      ctx.fillRect(px, py, 1, 1);
-    });
-
-    // 5) Viruses
-    ctx.fillStyle = "#39a85a";
-    viruses.list.forEach((v) => {
-      const vx = this.x + (v.x / this.worldWidth) * this.width;
-      const vy = this.y + (v.y / this.worldHeight) * this.height;
-      ctx.beginPath();
-      ctx.arc(vx, vy, 3, 0, 2 * Math.PI);
-      ctx.fill();
-    });
-
-    // 6) Bots
-    ctx.fillStyle = "#dddd00";
-    bots.list.forEach((b) => {
-      const bx = this.x + (b.x / this.worldWidth) * this.width;
-      const by = this.y + (b.y / this.worldHeight) * this.height;
-      ctx.beginPath();
-      ctx.arc(bx, by, 2, 0, 2 * Math.PI);
-      ctx.fill();
-    });
-
-    // 7) Player
-    ctx.fillStyle = "#ff3b3b";
+    // Show only the player
+    // Project the player's position in world => minimap coords
     const px = this.x + (player.x / this.worldWidth) * this.width;
     const py = this.y + (player.y / this.worldHeight) * this.height;
+    ctx.fillStyle = `hsl(${player.hue}, 100%, 50%)`;
     ctx.beginPath();
     ctx.arc(px, py, 3, 0, 2 * Math.PI);
     ctx.fill();

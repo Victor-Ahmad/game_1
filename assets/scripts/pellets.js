@@ -15,13 +15,14 @@ class Pellets {
         x: Math.random() * this.worldWidth,
         y: Math.random() * this.worldHeight,
         radius: 3,
-        color: this.getRandomBrightColor(),
+        // Use HSL with random hue, full saturation, 50% lightness
+        hue: Math.floor(Math.random() * 360),
       });
     }
   }
 
   update() {
-    // Pellets are usually static in Agar.io
+    // Pellets do not move
   }
 
   render(ctx, camera, scale) {
@@ -30,19 +31,12 @@ class Pellets {
       const screenX = (pellet.x - camera.x) * scale + camera.offsetX;
       const screenY = (pellet.y - camera.y) * scale + camera.offsetY;
       ctx.beginPath();
-      ctx.fillStyle = pellet.color;
+      const color = `hsl(${pellet.hue}, 100%, 50%)`;
+      ctx.fillStyle = color;
       ctx.arc(screenX, screenY, pellet.radius * scale, 0, 2 * Math.PI);
       ctx.fill();
     });
     ctx.restore();
-  }
-
-  getRandomBrightColor() {
-    // Ensure each channel is at least ~150 for a brighter color
-    const r = 150 + Math.floor(Math.random() * 106); // 150-255
-    const g = 150 + Math.floor(Math.random() * 106);
-    const b = 150 + Math.floor(Math.random() * 106);
-    return `rgb(${r}, ${g}, ${b})`;
   }
 
   // Check collisions with a circle (player or bot)
