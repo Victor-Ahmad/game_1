@@ -15,7 +15,8 @@ class Viruses {
         x: Math.random() * this.worldWidth,
         y: Math.random() * this.worldHeight,
         radius: 40 + Math.random() * 15,
-        color: "#39a85a",
+        // greenish hue
+        hue: 120,
       });
     }
   }
@@ -31,7 +32,8 @@ class Viruses {
       const screenY = (virus.y - camera.y) * scale + camera.offsetY;
       ctx.beginPath();
       this.drawSpikyCircle(ctx, screenX, screenY, virus.radius * scale, 20);
-      ctx.fillStyle = virus.color;
+      const color = `hsl(${virus.hue}, 100%, 50%)`;
+      ctx.fillStyle = color;
       ctx.fill();
     });
     ctx.restore();

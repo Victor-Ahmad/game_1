@@ -26,8 +26,16 @@ let scale = 1;
 let mouseScreenX = 0;
 let mouseScreenY = 0;
 
-// Handle "game over" logic
+// Handle "game over"
 let gameOver = false;
+
+// Scores
+let currentMass = 0;
+let maxMass = 0;
+
+// Timer (countdown from 30:00 => 1800 seconds)
+let timeLimit = 30 * 60 * 1000; // in ms
+let startTime = 0; // set on init
 
 window.onload = function () {
   canvas = document.getElementById("canvas1");
@@ -56,6 +64,13 @@ function initGame() {
   viruses = new Viruses(worldWidth, worldHeight, 15);
   bots = new Bots(worldWidth, worldHeight, 15);
   miniMap = new MiniMap(worldWidth, worldHeight, 200, 200);
+
+  // Reset mass scores
+  currentMass = getMassFromRadius(player.radius);
+  maxMass = currentMass;
+
+  // Reset timer
+  startTime = Date.now();
 }
 
 function resizeCanvas() {
@@ -73,29 +88,38 @@ function gameLoop() {
 }
 
 function update() {
-  if (gameOver) return; // Skip updates if game over
+  if (gameOver) return; // stop updates if game is over
 
-  // Convert mouse screen pos to world coordinates
+  // Countdown logic
+  const elapsed = Date.now() - startTime;
+  let timeLeft = timeLimit - elapsed;
+  if (timeLeft <= 0) {
+    timeLeft = 0;
+    gameOver = true; // times up => game over
+  }
+
+  // Convert mouse coords => world coords
   const centerX = canvas.width / 2;
   const centerY = canvas.height / 2;
   const targetWorldX = player.x + (mouseScreenX - centerX) / scale;
   const targetWorldY = player.y + (mouseScreenY - centerY) / scale;
   player.setTarget(targetWorldX, targetWorldY);
 
-  // Update player
-  player.update();
+  // Update player with half screen width as the speed-limiting circle
+  const halfScreenWidth = canvas.width / 2;
+  player.update(halfScreenWidth);
 
-  // Adjust camera so it's centered on player
+  // Adjust camera to center on player
   camera.x = player.x - canvas.width / (2 * scale);
   camera.y = player.y - canvas.height / (2 * scale);
 
-  // Adjust zoom based on player size (bigger player -> smaller scale)
+  // Zoom scales with player size
   scale = Math.max(0.3, 1.5 - player.radius * 0.01);
 
-  // Update pellets, bots, viruses (if needed)
+  // Update pellets, bots, viruses
   pellets.update();
   bots.update();
-  // viruses.update(); // viruses are static, but you could call it anyway
+  // viruses.update(); // they are static, but you can call it
 
   // Player eats pellets
   let eatenPellets = pellets.checkCollisions(player);
@@ -106,9 +130,12 @@ function update() {
   // Check collision with viruses
   let virusIndex = viruses.checkCollision(player);
   if (virusIndex >= 0) {
-    // If player's bigger than virus, "pop" the player
     if (player.radius > viruses.list[virusIndex].radius) {
+      // pop player
       player.setTargetRadius(player.radius / 2);
+
+      // Remove the virus from the game
+      viruses.list.splice(virusIndex, 1);
     }
   }
 
@@ -120,13 +147,18 @@ function update() {
     }
   });
 
-  // Bots and viruses
-  bots.list.forEach((bot) => {
+  // Bots vs viruses
+  for (let i = bots.list.length - 1; i >= 0; i--) {
+    let bot = bots.list[i];
     let vIndex = viruses.checkCollision(bot);
     if (vIndex >= 0 && bot.radius > viruses.list[vIndex].radius) {
+      // pop the bot
       bot.setTargetRadius(bot.radius / 2);
+
+      // remove virus
+      viruses.list.splice(vIndex, 1);
     }
-  });
+  }
 
   // Player vs bots
   for (let i = bots.list.length - 1; i >= 0; i--) {
@@ -134,21 +166,19 @@ function update() {
     const distSq = (bot.x - player.x) ** 2 + (bot.y - player.y) ** 2;
     const radSum = bot.radius + player.radius;
     if (distSq < radSum * radSum) {
-      // Check who is bigger
       if (player.radius > bot.radius) {
         // Player eats bot
         player.grow(bot.radius * 0.3);
         bots.list.splice(i, 1);
       } else {
-        // Bot eats player -> game over
-        // Instead of alert(), mark gameOver
+        // Bot eats player => game over
         gameOver = true;
-        return;
+        break;
       }
     }
   }
 
-  // Bot vs bot collisions
+  // Bot vs bot
   for (let i = 0; i < bots.list.length; i++) {
     for (let j = i + 1; j < bots.list.length; j++) {
       const botA = bots.list[i];
@@ -156,7 +186,6 @@ function update() {
       const distSq = (botA.x - botB.x) ** 2 + (botA.y - botB.y) ** 2;
       const radSum = botA.radius + botB.radius;
       if (distSq < radSum * radSum) {
-        // Collision: bigger one "eats" the smaller
         if (botA.radius > botB.radius) {
           botA.setTargetRadius(botA.targetRadius + botB.radius * 0.3);
           bots.list.splice(j, 1);
@@ -170,22 +199,24 @@ function update() {
       }
     }
   }
+
+  // Update current mass and max mass
+  currentMass = getMassFromRadius(player.radius);
+  if (currentMass > maxMass) maxMass = currentMass;
 }
 
 function draw() {
   // Clear screen
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // Fill black background
+  // Fill background
   ctx.save();
   ctx.fillStyle = "#000000";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.restore();
 
-  // Draw the 6×6 grid
+  // Draw world grid and boundary
   drawWorldGrid();
-
-  // Draw boundary
   drawWorldBoundary();
 
   // Render game objects
@@ -194,16 +225,70 @@ function draw() {
   bots.render(ctx, camera, scale);
   player.render(ctx, camera, scale);
 
-  // Render minimap
-  miniMap.render(ctx, player, bots, pellets, viruses);
+  // Render minimap (player only)
+  miniMap.render(ctx, player);
 
-  // If game over, show overlay text
+  // Draw scoreboard & timer
+  drawScores();
+  drawTimer();
+
+  // If game over, show overlay
   if (gameOver) {
     drawGameOver();
   }
 }
 
-// Draw a red rectangle at the world boundary
+// Helpers
+
+function drawScores() {
+  // Current mass + highest mass at top-left
+  ctx.save();
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "20px sans-serif";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "top";
+  ctx.fillText(`Current Mass: ${Math.round(currentMass)}`, 10, 10);
+  ctx.fillText(`Max Mass: ${Math.round(maxMass)}`, 10, 40);
+  ctx.restore();
+}
+
+function drawTimer() {
+  // Show countdown from 30:00 at top center
+  const elapsed = Date.now() - startTime;
+  let timeLeft = timeLimit - elapsed;
+  if (timeLeft < 0) timeLeft = 0;
+
+  // Convert ms -> mm:ss
+  const totalSeconds = Math.floor(timeLeft / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+
+  const timeStr = `${String(minutes).padStart(2, "0")}:${String(
+    seconds
+  ).padStart(2, "0")}`;
+
+  ctx.save();
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "24px sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  ctx.fillText(timeStr, canvas.width / 2, 10);
+  ctx.restore();
+}
+
+function drawGameOver() {
+  ctx.save();
+  ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = "#fff";
+  ctx.font = "48px sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("Game Over", canvas.width / 2, canvas.height / 2);
+  ctx.restore();
+}
+
 function drawWorldBoundary() {
   ctx.save();
   ctx.strokeStyle = "red";
@@ -217,7 +302,6 @@ function drawWorldBoundary() {
   ctx.restore();
 }
 
-// Draw the 6×6 grid within the world
 function drawWorldGrid() {
   const rows = 6;
   const cols = 6;
@@ -248,7 +332,7 @@ function drawWorldGrid() {
     ctx.stroke();
   }
 
-  // Label each cell: A1..A6, B1..B6, ... F6
+  // Label cells: A1..F6
   ctx.fillStyle = "#ffffff";
   const fontSize = 16 * scale;
   ctx.font = `${fontSize}px sans-serif`;
@@ -269,17 +353,7 @@ function drawWorldGrid() {
   ctx.restore();
 }
 
-// Simple "Game Over" text overlay
-function drawGameOver() {
-  ctx.save();
-  ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  ctx.fillStyle = "#fff";
-  ctx.font = "48px sans-serif";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText("Game Over", canvas.width / 2, canvas.height / 2);
-
-  ctx.restore();
+function getMassFromRadius(radius) {
+  // area = π * r^2
+  return Math.PI * radius * radius;
 }

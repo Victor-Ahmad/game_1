@@ -9,45 +9,61 @@ class Player {
 
     // Player radius
     this.radius = 15;
-    this.targetRadius = this.radius; // for smooth growth/shrink
-    this.radiusSmoothing = 0.1; // how fast we interpolate radius
+    this.targetRadius = this.radius; // smooth changes
+    this.radiusSmoothing = 0.1;
 
-    this.color = "#ff3b3b";
+    // Player color (hue=0 => red)
+    this.hue = 0;
 
     // Movement parameters
-    this.maxSpeed = 1;
+    this.baseMaxSpeed = 1; // base max speed
     this.accelerationFactor = 0.01;
-
     this.targetX = this.x;
     this.targetY = this.y;
+
+    // Decay
+    this.decayRate = 0.0005; // fraction of radius lost per second
+    this.lastUpdateTime = Date.now();
   }
 
-  update() {
-    // Smoothly interpolate radius to targetRadius
+  update(halfScreenWidth) {
+    // Smoothly interpolate radius
     this.radius += this.radiusSmoothing * (this.targetRadius - this.radius);
 
-    // Move continuously toward (this.targetX, this.targetY)
+    // Mass decay
+    const now = Date.now();
+    const deltaMs = now - this.lastUpdateTime;
+    this.lastUpdateTime = now;
+    const deltaSec = deltaMs / 1000;
+    const radiusLoss = this.radius * this.decayRate * deltaSec;
+    this.setTargetRadius(this.targetRadius - radiusLoss);
+
+    // Movement logic
     const dx = this.targetX - this.x;
     const dy = this.targetY - this.y;
     const distance = Math.sqrt(dx * dx + dy * dy);
 
+    // Speed depends on radius => slower if bigger
+    let radiusFactor = 1 + this.radius * 0.01;
+    let rawMaxSpeed = this.baseMaxSpeed / radiusFactor;
+
+    // Limit by distance ratio
+    const ratio = Math.min(distance / halfScreenWidth, 1);
+    let finalSpeed = ratio * rawMaxSpeed;
+
     if (distance > 0.5) {
-      const actualMaxSpeed = Math.max(0.3, this.maxSpeed - this.radius * 0.01);
       const angle = Math.atan2(dy, dx);
-      // Move fractionally to smoothly approach
       this.x +=
-        Math.cos(angle) * distance * this.accelerationFactor * actualMaxSpeed;
+        Math.cos(angle) * distance * this.accelerationFactor * finalSpeed;
       this.y +=
-        Math.sin(angle) * distance * this.accelerationFactor * actualMaxSpeed;
+        Math.sin(angle) * distance * this.accelerationFactor * finalSpeed;
     }
 
-    // Keep inside world boundaries
-    if (this.x < this.radius) this.x = this.radius;
-    if (this.y < this.radius) this.y = this.radius;
-    if (this.x > this.worldWidth - this.radius)
-      this.x = this.worldWidth - this.radius;
-    if (this.y > this.worldHeight - this.radius)
-      this.y = this.worldHeight - this.radius;
+    // Boundaries (like bots)
+    if (this.x < 0) this.x = 0;
+    if (this.y < 0) this.y = 0;
+    if (this.x > this.worldWidth) this.x = this.worldWidth;
+    if (this.y > this.worldHeight) this.y = this.worldHeight;
   }
 
   render(ctx, camera, scale) {
@@ -55,8 +71,9 @@ class Player {
     const screenX = (this.x - camera.x) * scale + camera.offsetX;
     const screenY = (this.y - camera.y) * scale + camera.offsetY;
     ctx.beginPath();
+    const color = `hsl(${this.hue}, 100%, 50%)`;
+    ctx.fillStyle = color;
     ctx.arc(screenX, screenY, this.radius * scale, 0, 2 * Math.PI);
-    ctx.fillStyle = this.color;
     ctx.fill();
 
     // White stroke
@@ -74,22 +91,16 @@ class Player {
     ctx.restore();
   }
 
-  // Setting target coordinates for movement
   setTarget(x, y) {
     this.targetX = x;
     this.targetY = y;
   }
 
-  // Set the new target radius for the player
   setTargetRadius(newRadius) {
-    this.targetRadius = newRadius;
-    if (this.targetRadius < 0) {
-      this.targetRadius = 0;
-    }
+    this.targetRadius = Math.max(0, newRadius);
   }
 
   grow(amount) {
-    // Increase target radius by 'amount'
     this.setTargetRadius(this.targetRadius + amount);
   }
 }
