@@ -15,14 +15,14 @@ class Pellets {
         x: Math.random() * this.worldWidth,
         y: Math.random() * this.worldHeight,
         radius: 3,
-        // Use HSL with random hue, full saturation, 50% lightness
+        // Use HSL with random hue
         hue: Math.floor(Math.random() * 360),
       });
     }
   }
 
   update() {
-    // Pellets do not move
+    // Pellets are static
   }
 
   render(ctx, camera, scale) {

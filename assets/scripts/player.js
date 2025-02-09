@@ -12,7 +12,7 @@ class Player {
     this.targetRadius = this.radius; // smooth changes
     this.radiusSmoothing = 0.1;
 
-    // Player color (let's pick a hue = 0 => red)
+    // Player color (hue=0 => red)
     this.hue = 0;
 
     // Movement parameters
@@ -20,28 +20,37 @@ class Player {
     this.accelerationFactor = 0.01;
     this.targetX = this.x;
     this.targetY = this.y;
+
+    // Decay
+    this.decayRate = 0.0005; // fraction of radius lost per second
+    this.lastUpdateTime = Date.now();
   }
 
   update(halfScreenWidth) {
     // Smoothly interpolate radius
     this.radius += this.radiusSmoothing * (this.targetRadius - this.radius);
 
-    // Distance to mouse
+    // Mass decay
+    const now = Date.now();
+    const deltaMs = now - this.lastUpdateTime;
+    this.lastUpdateTime = now;
+    const deltaSec = deltaMs / 1000;
+    const radiusLoss = this.radius * this.decayRate * deltaSec;
+    this.setTargetRadius(this.targetRadius - radiusLoss);
+
+    // Movement logic
     const dx = this.targetX - this.x;
     const dy = this.targetY - this.y;
     const distance = Math.sqrt(dx * dx + dy * dy);
 
-    // Speed depends on distance from player -> mouse, up to halfScreenWidth
-    // and also decreases with bigger radius
-    // Example: finalMaxSpeed = baseMaxSpeed / (1 + radius*0.01)
-    // Then scale it by the ratio of (distance / halfScreenWidth), capped at 1
+    // Speed depends on radius => slower if bigger
     let radiusFactor = 1 + this.radius * 0.01;
     let rawMaxSpeed = this.baseMaxSpeed / radiusFactor;
 
+    // Limit by distance ratio
     const ratio = Math.min(distance / halfScreenWidth, 1);
     let finalSpeed = ratio * rawMaxSpeed;
 
-    // Move the player
     if (distance > 0.5) {
       const angle = Math.atan2(dy, dx);
       this.x +=
@@ -50,13 +59,11 @@ class Player {
         Math.sin(angle) * distance * this.accelerationFactor * finalSpeed;
     }
 
-    // Keep inside world boundaries
-    if (this.x < this.radius) this.x = this.radius;
-    if (this.y < this.radius) this.y = this.radius;
-    if (this.x > this.worldWidth - this.radius)
-      this.x = this.worldWidth - this.radius;
-    if (this.y > this.worldHeight - this.radius)
-      this.y = this.worldHeight - this.radius;
+    // Boundaries (like bots)
+    if (this.x < 0) this.x = 0;
+    if (this.y < 0) this.y = 0;
+    if (this.x > this.worldWidth) this.x = this.worldWidth;
+    if (this.y > this.worldHeight) this.y = this.worldHeight;
   }
 
   render(ctx, camera, scale) {

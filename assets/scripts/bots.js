@@ -9,7 +9,7 @@ class Bot {
 
     // Bot radius
     this.radius = 15 + Math.random() * 10;
-    this.targetRadius = this.radius; // smooth changes
+    this.targetRadius = this.radius; // for smooth changes
     this.smoothing = 0.15;
 
     // Use HSL with random hue for bots
@@ -18,15 +18,25 @@ class Bot {
     // Movement
     this.angle = Math.random() * 2 * Math.PI;
     this.baseMaxSpeed = 2; // "base" top speed
-    this.speed = this.baseMaxSpeed;
+    // We'll store any mass decay logic in `update()` calls
+    this.decayRate = 0.001; // fraction of radius to lose per second
+    this.lastUpdateTime = Date.now();
   }
 
   update() {
-    // Smoothly interpolate radius
+    // Smooth radius
     this.radius += this.smoothing * (this.targetRadius - this.radius);
 
-    // Speed limit depends on radius (bigger => slower)
-    // e.g. finalMaxSpeed = baseMax / (1 + radius * 0.01)
+    // Mass decay
+    // We'll decay radius by (decayRate * (deltaTime in seconds) * radius)
+    const now = Date.now();
+    const deltaMs = now - this.lastUpdateTime;
+    this.lastUpdateTime = now;
+    const deltaSec = deltaMs / 1000;
+    const radiusLoss = this.radius * this.decayRate * deltaSec;
+    this.setTargetRadius(this.targetRadius - radiusLoss);
+
+    // Speed depends on radius
     let finalMaxSpeed = this.baseMaxSpeed / (1 + this.radius * 0.01);
 
     // Random-walk AI
@@ -34,11 +44,11 @@ class Bot {
       this.angle += (Math.random() - 0.5) * 1.0;
     }
 
-    // Move at final speed
+    // Move
     this.x += Math.cos(this.angle) * finalMaxSpeed;
     this.y += Math.sin(this.angle) * finalMaxSpeed;
 
-    // Keep in bounds
+    // Boundaries (no radius check, just clamp 0..worldWidth)
     if (this.x < 0) this.x = 0;
     if (this.y < 0) this.y = 0;
     if (this.x > this.worldWidth) this.x = this.worldWidth;

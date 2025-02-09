@@ -15,14 +15,14 @@ class Viruses {
         x: Math.random() * this.worldWidth,
         y: Math.random() * this.worldHeight,
         radius: 40 + Math.random() * 15,
-        // Let's make viruses always appear greenish hue ~120
+        // greenish hue
         hue: 120,
       });
     }
   }
 
   update() {
-    // Viruses do not move
+    // Viruses are static
   }
 
   render(ctx, camera, scale) {

@@ -18,7 +18,7 @@ class MiniMap {
   render(ctx, player) {
     ctx.save();
 
-    // Dark background for minimap
+    // Dark background
     ctx.globalAlpha = 0.6;
     ctx.fillStyle = "#000";
     ctx.fillRect(this.x, this.y, this.width, this.height);
@@ -64,8 +64,7 @@ class MiniMap {
       }
     }
 
-    // Show only the player
-    // Project the player's position in world => minimap coords
+    // Only the player dot
     const px = this.x + (player.x / this.worldWidth) * this.width;
     const py = this.y + (player.y / this.worldHeight) * this.height;
     ctx.fillStyle = `hsl(${player.hue}, 100%, 50%)`;

@@ -95,14 +95,12 @@ function update() {
   let timeLeft = timeLimit - elapsed;
   if (timeLeft <= 0) {
     timeLeft = 0;
-    // Times up => game over
-    gameOver = true;
+    gameOver = true; // times up => game over
   }
 
   // Convert mouse coords => world coords
   const centerX = canvas.width / 2;
   const centerY = canvas.height / 2;
-
   const targetWorldX = player.x + (mouseScreenX - centerX) / scale;
   const targetWorldY = player.y + (mouseScreenY - centerY) / scale;
   player.setTarget(targetWorldX, targetWorldY);
@@ -121,7 +119,7 @@ function update() {
   // Update pellets, bots, viruses
   pellets.update();
   bots.update();
-  // viruses.update() is empty
+  // viruses.update(); // they are static, but you can call it
 
   // Player eats pellets
   let eatenPellets = pellets.checkCollisions(player);
@@ -135,6 +133,9 @@ function update() {
     if (player.radius > viruses.list[virusIndex].radius) {
       // pop player
       player.setTargetRadius(player.radius / 2);
+
+      // Remove the virus from the game
+      viruses.list.splice(virusIndex, 1);
     }
   }
 
@@ -147,12 +148,17 @@ function update() {
   });
 
   // Bots vs viruses
-  bots.list.forEach((bot) => {
+  for (let i = bots.list.length - 1; i >= 0; i--) {
+    let bot = bots.list[i];
     let vIndex = viruses.checkCollision(bot);
     if (vIndex >= 0 && bot.radius > viruses.list[vIndex].radius) {
+      // pop the bot
       bot.setTargetRadius(bot.radius / 2);
+
+      // remove virus
+      viruses.list.splice(vIndex, 1);
     }
-  });
+  }
 
   // Player vs bots
   for (let i = bots.list.length - 1; i >= 0; i--) {
@@ -209,6 +215,7 @@ function draw() {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.restore();
 
+  // Draw world grid and boundary
   drawWorldGrid();
   drawWorldBoundary();
 
@@ -218,13 +225,11 @@ function draw() {
   bots.render(ctx, camera, scale);
   player.render(ctx, camera, scale);
 
-  // Render minimap (only shows player & cell names)
+  // Render minimap (player only)
   miniMap.render(ctx, player);
 
-  // Draw scores at top-left
+  // Draw scoreboard & timer
   drawScores();
-
-  // Draw countdown at top-center
   drawTimer();
 
   // If game over, show overlay
@@ -349,6 +354,6 @@ function drawWorldGrid() {
 }
 
 function getMassFromRadius(radius) {
-  // Simple approach: area = π * r^2
+  // area = π * r^2
   return Math.PI * radius * radius;
 }
