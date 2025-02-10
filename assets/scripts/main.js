@@ -4,7 +4,7 @@ let canvas, ctx;
 let worldWidth = 3000;
 let worldHeight = 3000;
 
-// Game objects
+// Entities
 let player;
 let pellets;
 let viruses;
@@ -19,23 +19,23 @@ const camera = {
   offsetY: 0,
 };
 
-// Zoom scale
 let scale = 1;
-
-// Track the mouse position in screen coordinates
 let mouseScreenX = 0;
 let mouseScreenY = 0;
-
-// Handle "game over"
 let gameOver = false;
 
-// Scores
+// Score
 let currentMass = 0;
 let maxMass = 0;
 
-// Timer (countdown from 30:00 => 1800 seconds)
-let timeLimit = 30 * 60 * 1000; // in ms
-let startTime = 0; // set on init
+// Timer
+let timeLimit = 30 * 60 * 1000;
+let startTime = 0;
+
+// Splitting
+let lastSplitTime = 0; // track time of last space press
+let splitCooldown = 1000; // 1s between splits
+const maxCells = 10; // can't exceed 10 sub-cells
 
 window.onload = function () {
   canvas = document.getElementById("canvas1");
@@ -44,16 +44,36 @@ window.onload = function () {
   resizeCanvas();
   initGame();
 
-  // Handle resize
   window.addEventListener("resize", resizeCanvas);
 
-  // Track mouse screen position
   canvas.addEventListener("mousemove", (e) => {
     mouseScreenX = e.clientX;
     mouseScreenY = e.clientY;
   });
 
-  // Start game loop
+  // Space key => attempt split
+  window.addEventListener("keydown", (e) => {
+    if (e.code === "Space" && !gameOver) {
+      const now = Date.now();
+      // Check cooldown
+      if (now - lastSplitTime < splitCooldown) return;
+      // Check if we already have 10 sub-cells
+      if (player.cells.length >= maxCells) return;
+
+      lastSplitTime = now;
+
+      // Convert mouse to world coords for direction
+      let largest = player.getLargestCell();
+      if (!largest) return;
+      let centerX = canvas.width / 2;
+      let centerY = canvas.height / 2;
+      let worldMouseX = largest.x + (mouseScreenX - centerX) / scale;
+      let worldMouseY = largest.y + (mouseScreenY - centerY) / scale;
+
+      player.split(worldMouseX, worldMouseY);
+    }
+  });
+
   requestAnimationFrame(gameLoop);
 };
 
@@ -65,11 +85,8 @@ function initGame() {
   bots = new Bots(worldWidth, worldHeight, 15);
   miniMap = new MiniMap(worldWidth, worldHeight, 200, 200);
 
-  // Reset mass scores
-  currentMass = getMassFromRadius(player.radius);
+  currentMass = getMassFromArea(player.getTotalMass());
   maxMass = currentMass;
-
-  // Reset timer
   startTime = Date.now();
 }
 
@@ -88,97 +105,91 @@ function gameLoop() {
 }
 
 function update() {
-  if (gameOver) return; // stop updates if game is over
+  if (gameOver) return;
 
-  // Countdown logic
   const elapsed = Date.now() - startTime;
   let timeLeft = timeLimit - elapsed;
   if (timeLeft <= 0) {
     timeLeft = 0;
-    gameOver = true; // times up => game over
+    gameOver = true;
   }
 
   // Convert mouse coords => world coords
+  let largest = player.getLargestCell();
+  if (!largest) {
+    // no sub-cells => game over
+    gameOver = true;
+    return;
+  }
+
   const centerX = canvas.width / 2;
   const centerY = canvas.height / 2;
-  const targetWorldX = player.x + (mouseScreenX - centerX) / scale;
-  const targetWorldY = player.y + (mouseScreenY - centerY) / scale;
-  player.setTarget(targetWorldX, targetWorldY);
+  const worldMouseX = largest.x + (mouseScreenX - centerX) / scale;
+  const worldMouseY = largest.y + (mouseScreenY - centerY) / scale;
 
-  // Update player with half screen width as the speed-limiting circle
+  // Update player
   const halfScreenWidth = canvas.width / 2;
-  player.update(halfScreenWidth);
+  player.update(halfScreenWidth, worldMouseX, worldMouseY);
 
-  // Adjust camera to center on player
-  camera.x = player.x - canvas.width / (2 * scale);
-  camera.y = player.y - canvas.height / (2 * scale);
+  // Camera on largest cell
+  camera.x = largest.x - canvas.width / (2 * scale);
+  camera.y = largest.y - canvas.height / (2 * scale);
 
-  // Zoom scales with player size
-  scale = Math.max(0.3, 1.5 - player.radius * 0.01);
+  // Scale changes with largest radius
+  let largestRadius = largest.radius;
+  scale = Math.max(0.3, 1.5 - largestRadius * 0.01);
 
   // Update pellets, bots, viruses
   pellets.update();
   bots.update();
-  // viruses.update(); // they are static, but you can call it
+  // viruses.update(); // static
 
-  // Player eats pellets
-  let eatenPellets = pellets.checkCollisions(player);
-  if (eatenPellets > 0) {
-    player.grow(eatenPellets * 0.5);
-  }
+  // Collisions for each player cell
+  for (let cIndex = 0; cIndex < player.cells.length; cIndex++) {
+    const cell = player.cells[cIndex];
 
-  // Check collision with viruses
-  let virusIndex = viruses.checkCollision(player);
-  if (virusIndex >= 0) {
-    if (player.radius > viruses.list[virusIndex].radius) {
-      // pop player
-      player.setTargetRadius(player.radius / 2);
-
-      // Remove the virus from the game
-      viruses.list.splice(virusIndex, 1);
+    // Pellets
+    let eatenPellets = pellets.checkCollisions(cell);
+    if (eatenPellets > 0) {
+      player.growCell(cell, eatenPellets * 0.5);
     }
-  }
 
-  // Bots eat pellets
-  bots.list.forEach((bot) => {
-    let eatenByBot = pellets.checkCollisions(bot);
-    if (eatenByBot > 0) {
-      bot.setTargetRadius(bot.targetRadius + eatenByBot * 0.5);
+    // Viruses
+    let virusIndex = viruses.checkCollision(cell);
+    if (virusIndex >= 0) {
+      // If bigger => pop, remove virus
+      if (cell.radius > viruses.list[virusIndex].radius) {
+        cell.targetRadius = cell.radius / 2;
+        viruses.list.splice(virusIndex, 1);
+      }
     }
-  });
 
-  // Bots vs viruses
-  for (let i = bots.list.length - 1; i >= 0; i--) {
-    let bot = bots.list[i];
-    let vIndex = viruses.checkCollision(bot);
-    if (vIndex >= 0 && bot.radius > viruses.list[vIndex].radius) {
-      // pop the bot
-      bot.setTargetRadius(bot.radius / 2);
-
-      // remove virus
-      viruses.list.splice(vIndex, 1);
-    }
-  }
-
-  // Player vs bots
-  for (let i = bots.list.length - 1; i >= 0; i--) {
-    const bot = bots.list[i];
-    const distSq = (bot.x - player.x) ** 2 + (bot.y - player.y) ** 2;
-    const radSum = bot.radius + player.radius;
-    if (distSq < radSum * radSum) {
-      if (player.radius > bot.radius) {
-        // Player eats bot
-        player.grow(bot.radius * 0.3);
-        bots.list.splice(i, 1);
-      } else {
-        // Bot eats player => game over
-        gameOver = true;
-        break;
+    // Bots
+    for (let i = bots.list.length - 1; i >= 0; i--) {
+      const bot = bots.list[i];
+      const distSq = (bot.x - cell.x) ** 2 + (bot.y - cell.y) ** 2;
+      const radSum = bot.radius + cell.radius;
+      if (distSq < radSum * radSum) {
+        // collision
+        if (cell.radius > bot.radius) {
+          // player cell eats bot
+          player.growCell(cell, bot.radius * 0.3);
+          bots.list.splice(i, 1);
+        } else {
+          // bot eats cell
+          player.cells.splice(cIndex, 1);
+          cIndex--;
+          if (player.cells.length === 0) {
+            gameOver = true;
+            return;
+          }
+          break; // done with this cell
+        }
       }
     }
   }
 
-  // Bot vs bot
+  // Bot vs bot collisions
   for (let i = 0; i < bots.list.length; i++) {
     for (let j = i + 1; j < bots.list.length; j++) {
       const botA = bots.list[i];
@@ -186,6 +197,7 @@ function update() {
       const distSq = (botA.x - botB.x) ** 2 + (botA.y - botB.y) ** 2;
       const radSum = botA.radius + botB.radius;
       if (distSq < radSum * radSum) {
+        // bigger eats smaller
         if (botA.radius > botB.radius) {
           botA.setTargetRadius(botA.targetRadius + botB.radius * 0.3);
           bots.list.splice(j, 1);
@@ -200,50 +212,43 @@ function update() {
     }
   }
 
-  // Update current mass and max mass
-  currentMass = getMassFromRadius(player.radius);
+  // Update scoreboard mass
+  currentMass = getMassFromArea(player.getTotalMass());
   if (currentMass > maxMass) maxMass = currentMass;
 }
 
 function draw() {
-  // Clear screen
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // Fill background
+  // background
   ctx.save();
-  ctx.fillStyle = "#000000";
+  ctx.fillStyle = "#000";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.restore();
 
-  // Draw world grid and boundary
   drawWorldGrid();
   drawWorldBoundary();
 
-  // Render game objects
   pellets.render(ctx, camera, scale);
   viruses.render(ctx, camera, scale);
   bots.render(ctx, camera, scale);
   player.render(ctx, camera, scale);
 
-  // Render minimap (player only)
   miniMap.render(ctx, player);
 
-  // Draw scoreboard & timer
   drawScores();
   drawTimer();
 
-  // If game over, show overlay
   if (gameOver) {
     drawGameOver();
   }
 }
 
-// Helpers
+// scoreboard, timer, boundary, etc.
 
 function drawScores() {
-  // Current mass + highest mass at top-left
   ctx.save();
-  ctx.fillStyle = "#ffffff";
+  ctx.fillStyle = "#fff";
   ctx.font = "20px sans-serif";
   ctx.textAlign = "left";
   ctx.textBaseline = "top";
@@ -253,22 +258,19 @@ function drawScores() {
 }
 
 function drawTimer() {
-  // Show countdown from 30:00 at top center
   const elapsed = Date.now() - startTime;
   let timeLeft = timeLimit - elapsed;
   if (timeLeft < 0) timeLeft = 0;
 
-  // Convert ms -> mm:ss
   const totalSeconds = Math.floor(timeLeft / 1000);
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
-
   const timeStr = `${String(minutes).padStart(2, "0")}:${String(
     seconds
   ).padStart(2, "0")}`;
 
   ctx.save();
-  ctx.fillStyle = "#ffffff";
+  ctx.fillStyle = "#fff";
   ctx.font = "24px sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
@@ -333,7 +335,7 @@ function drawWorldGrid() {
   }
 
   // Label cells: A1..F6
-  ctx.fillStyle = "#ffffff";
+  ctx.fillStyle = "#fff";
   const fontSize = 16 * scale;
   ctx.font = `${fontSize}px sans-serif`;
   ctx.textAlign = "center";
@@ -353,7 +355,7 @@ function drawWorldGrid() {
   ctx.restore();
 }
 
-function getMassFromRadius(radius) {
-  // area = π * r^2
-  return Math.PI * radius * radius;
+function getMassFromArea(area) {
+  // We treat 'area' directly as "mass"
+  return area;
 }

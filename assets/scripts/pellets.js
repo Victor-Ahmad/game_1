@@ -15,8 +15,7 @@ class Pellets {
         x: Math.random() * this.worldWidth,
         y: Math.random() * this.worldHeight,
         radius: 3,
-        // Use HSL with random hue
-        hue: Math.floor(Math.random() * 360),
+        hue: Math.floor(Math.random() * 360), // HSL hue
       });
     }
   }
@@ -31,16 +30,16 @@ class Pellets {
       const screenX = (pellet.x - camera.x) * scale + camera.offsetX;
       const screenY = (pellet.y - camera.y) * scale + camera.offsetY;
       ctx.beginPath();
-      const color = `hsl(${pellet.hue}, 100%, 50%)`;
-      ctx.fillStyle = color;
+      ctx.fillStyle = `hsl(${pellet.hue}, 100%, 50%)`;
       ctx.arc(screenX, screenY, pellet.radius * scale, 0, 2 * Math.PI);
       ctx.fill();
     });
     ctx.restore();
   }
 
-  // Check collisions with a circle (player or bot)
   checkCollisions(entity) {
+    // 'entity' can be a single cell or multi-cells, so we handle that in main
+    // Typically, we'll pass each cell to checkCollisions.
     let eatenCount = 0;
     for (let i = this.list.length - 1; i >= 0; i--) {
       const pellet = this.list[i];

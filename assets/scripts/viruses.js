@@ -15,8 +15,7 @@ class Viruses {
         x: Math.random() * this.worldWidth,
         y: Math.random() * this.worldHeight,
         radius: 40 + Math.random() * 15,
-        // greenish hue
-        hue: 120,
+        hue: 120, // greenish
       });
     }
   }
@@ -32,8 +31,7 @@ class Viruses {
       const screenY = (virus.y - camera.y) * scale + camera.offsetY;
       ctx.beginPath();
       this.drawSpikyCircle(ctx, screenX, screenY, virus.radius * scale, 20);
-      const color = `hsl(${virus.hue}, 100%, 50%)`;
-      ctx.fillStyle = color;
+      ctx.fillStyle = `hsl(${virus.hue}, 100%, 50%)`;
       ctx.fill();
     });
     ctx.restore();
@@ -62,7 +60,7 @@ class Viruses {
   }
 
   checkCollision(entity) {
-    // Return index of virus if collision, else -1
+    // Return index if collision, -1 if no collision
     for (let i = 0; i < this.list.length; i++) {
       const virus = this.list[i];
       const distSq = (virus.x - entity.x) ** 2 + (virus.y - entity.y) ** 2;

@@ -5,7 +5,6 @@ class MiniMap {
     this.width = width;
     this.height = height;
 
-    // Position in bottom-right corner
     this.x = window.innerWidth - this.width - 20;
     this.y = window.innerHeight - this.height - 20;
   }
@@ -64,13 +63,17 @@ class MiniMap {
       }
     }
 
-    // Only the player dot
-    const px = this.x + (player.x / this.worldWidth) * this.width;
-    const py = this.y + (player.y / this.worldHeight) * this.height;
-    ctx.fillStyle = `hsl(${player.hue}, 100%, 50%)`;
-    ctx.beginPath();
-    ctx.arc(px, py, 3, 0, 2 * Math.PI);
-    ctx.fill();
+    // Show each cell of the player on the minimap (optional).
+    // If you only want to show the "largest cell," pick it. We'll show them all:
+
+    player.cells.forEach((cell) => {
+      const px = this.x + (cell.x / this.worldWidth) * this.width;
+      const py = this.y + (cell.y / this.worldHeight) * this.height;
+      ctx.fillStyle = `hsl(${cell.hue}, 100%, 50%)`;
+      ctx.beginPath();
+      ctx.arc(px, py, 3, 0, 2 * Math.PI);
+      ctx.fill();
+    });
 
     ctx.restore();
   }
